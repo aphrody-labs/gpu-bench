@@ -1,6 +1,6 @@
 ---
 name: gpu-bench
-description: "Run and read gpu-bench: Dawn vs wgpu (compute, render, API overhead; Bun, Deno, native, browsers) and three.js vs Bevy. Use before claiming a WebGPU speedup, picking Dawn or wgpu, or rerunning the benchmark."
+description: "Run and read gpu-bench: Dawn vs wgpu (compute, render, API overhead; Bun, Deno, native, browsers) and three.js vs Bevy. Use before claiming a WebGPU speedup or picking Dawn or wgpu."
 ---
 
 # gpu-bench
