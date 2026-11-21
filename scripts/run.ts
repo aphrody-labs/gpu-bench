@@ -141,7 +141,7 @@ X=$HOME/.cache/cargo-xwin/xwin
 cd ${FR1_DIR}/bench/dawn
 clang-cl --target=${WIN} /std:c++20 /O2 /EHsc /MD /DNOMINMAX /imsvc $X/crt/include /imsvc $X/sdk/include/ucrt /imsvc $X/sdk/include/um /imsvc $X/sdk/include/shared \\
   /I$D/include main.cpp /Fe:gpu-bench-dawn.exe -fuse-ld=lld-link /link /libpath:$X/crt/lib/x86_64 /libpath:$X/sdk/lib/um/x86_64 /libpath:$X/sdk/lib/ucrt/x86_64 \\
-  $D/lib/webgpu_dawn.lib user32.lib gdi32.lib dxgi.lib d3d12.lib d3d11.lib dxguid.lib ole32.lib advapi32.lib shell32.lib ws2_32.lib dbghelp.lib onecore.lib version.lib`;
+  $D/lib/webgpu_dawn.lib user32.lib gdi32.lib dxgi.lib d3d12.lib d3d11.lib dxguid.lib ole32.lib advapi32.lib shell32.lib ws2_32.lib dbghelp.lib kernelbase.lib version.lib`;
     await fr1(script);
     await fetchFromFr1(`${FR1_DIR}/bench/dawn/gpu-bench-dawn.exe`, BIN);
   },
