@@ -192,6 +192,7 @@ name = "gpu-bench-wgpu"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "naga",
  "pollster",
  "serde_json",
  "wgpu",
