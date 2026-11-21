@@ -1,6 +1,6 @@
 ---
 name: gpu-bench
-description: "Run and read the gpu-bench suite (aphrody-labs/gpu-bench): Dawn vs wgpu (compute, render, API overhead; Bun, Deno, native, Chrome, Firefox) and three.js WebGPURenderer vs Bevy (native and wasm). Use before claiming a WebGPU speedup, choosing Dawn or wgpu, or rerunning the benchmark."
+description: "Run and read gpu-bench: Dawn vs wgpu (compute, render, API overhead; Bun, Deno, native, browsers) and three.js vs Bevy. Use before claiming a WebGPU speedup, picking Dawn or wgpu, or rerunning the benchmark."
 ---
 
 # gpu-bench
