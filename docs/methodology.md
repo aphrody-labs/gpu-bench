@@ -20,6 +20,8 @@ Submodules are shallow, use relative URLs (`../dawn.git`), and are pinned by com
 
 The JS hosts run the same file (`js/core.ts`). The two native benches implement the same steps line by line. The numbers are therefore comparable across a row, not across hosts: the host adds its own wait cost to `wall_ms` (Deno and Dawn-node resolve a `mapAsync` through their event loop), while `gpu_ms` comes from timestamp queries around the pass and is host independent.
 
+Dawn quantizes timestamp queries by default (65.5 microsecond steps were observed); the benches turn that off (`disable-dawn-features=timestamp_quantization` in Node bindings, the `timestamp_quantization` device toggle in C++, `--enable-webgpu-developer-features` in Chrome).
+
 Backend is pinned per configuration: Dawn takes `backend=d3d12|vulkan` (Node bindings) or `RequestAdapterOptions.backendType` (C++); wgpu takes `Backends::DX12|VULKAN` (Rust). Deno has no backend switch: its default adapter is Vulkan on this machine, and D3D12 is forced by pointing `VK_ICD_FILENAMES` at a missing file. Each result records the adapter description and what was requested.
 
 ## Workloads (identical WGSL)
@@ -36,7 +38,7 @@ Backend is pinned per configuration: Dawn takes `backend=d3d12|vulkan` (Node bin
 | `render_pipeline_ms` | `createRenderPipeline` (auto layout) on a unique, already compiled module | one iteration |
 | `compute_pipeline_ms` | `createComputePipeline` on a unique module | one iteration |
 
-Per workload every run does 5 warmup passes, then 20 (vecadd, matmul), 30 (reduce) or 60 (render) timed passes. Each timed pass is its own submission. Three metrics per pass: `gpu_ms` (timestamp query on the pass), `wall_ms` (encode, submit, wait for the timestamp readback, host clock) and `cpu_ms` (encode and submit only). When the adapter lacks `timestamp-query` the wall time waits on `onSubmittedWorkDone` instead and `gpu_ms` is absent.
+Per workload every run warms up for at least 5 passes and 1000 ms of continuous work (so GPU clocks have ramped), then times 50 (vecadd, matmul), 100 (reduce, fullscreen) or 200 (cubes) passes. Each timed pass is its own submission. Three metrics per pass: `gpu_ms` (timestamp query on the pass), `wall_ms` (encode, submit, wait for the timestamp readback, host clock) and `cpu_ms` (encode and submit only). When the adapter lacks `timestamp-query` the wall time waits on `onSubmittedWorkDone` instead and `gpu_ms` is absent.
 
 Each run verifies its output (first and last 1024 elements of the vector sum, the reduction sum 67108864, five exact matmul entries, and the count of lit pixels for both render workloads).
 
