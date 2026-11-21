@@ -20,7 +20,7 @@ jobs:
       - run: git submodule update --init --depth 1 vendor/wgpu
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: "bench/wgpu" }
+        with: { workspaces: "bench/wgpu", cache-on-failure: true }
       - run: cargo build --release --manifest-path bench/wgpu/Cargo.toml
       - run: rustc -Vv > bench/wgpu/target/release/rustc.txt
       - uses: actions/upload-artifact@v4
@@ -61,7 +61,7 @@ jobs:
       - run: git submodule update --init --depth 1 vendor/bevy
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: "scenes/bevy" }
+        with: { workspaces: "scenes/bevy", cache-on-failure: true }
       - run: cargo build --release --manifest-path scenes/bevy/Cargo.toml --features native
       - uses: actions/upload-artifact@v4
         with: { name: bevy-native, path: "scenes/bevy/target/release/gpu-bench-bevy.exe" }
@@ -76,7 +76,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: wasm32-unknown-unknown }
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: "scenes/bevy" }
+        with: { workspaces: "scenes/bevy", cache-on-failure: true }
       - run: cargo install wasm-bindgen-cli --version =0.2.130 --locked
       - run: sudo apt-get install -y binaryen
       - run: |

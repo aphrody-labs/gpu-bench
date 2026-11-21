@@ -47,7 +47,7 @@ fn number(token: &str) -> f32 {
 fn parse_path(tokens: &[String]) -> Option<Path> {
     let mut builder = PathBuilder::new();
     let mut i = 0;
-    let mut next = |i: &mut usize| {
+    let next = |i: &mut usize| {
         *i += 1;
         number(&tokens[*i - 1])
     };
@@ -163,7 +163,7 @@ mod text {
         fn shape(&mut self, size: f32, line: &str) -> Buffer {
             let mut buffer = Buffer::new(&mut self.font_system, Metrics::new(size, size * 1.2));
             buffer.set_size(&mut self.font_system, None, None);
-            buffer.set_text(&mut self.font_system, line, &Attrs::new().family(Family::Name(&self.family)), Shaping::Advanced, None);
+            buffer.set_text(&mut self.font_system, line, &Attrs::new().family(Family::Name(&self.family)), Shaping::Advanced);
             buffer.shape_until_scroll(&mut self.font_system, false);
             buffer
         }
@@ -274,7 +274,7 @@ fn play(scene: &Scene, frame: &mut Frame, text: &mut Option<text::Text>) -> Resu
             "fill" | "rect" => {
                 let (anti_alias, mut i) = if op.kind == "fill" { (t[2] == "1", 3) } else { (t[4] == "1", 5) };
                 let Some(shader) = make_shader(t, &mut i) else { continue };
-                let paint = Paint { shader, blend_mode: blend, anti_alias, force_hq_pipeline: false };
+                let paint = Paint { shader, blend_mode: blend, anti_alias, force_hq_pipeline: false, ..Paint::default() };
                 if op.kind == "fill" {
                     let rule = if t[1] == "eo" { FillRule::EvenOdd } else { FillRule::Winding };
                     frame.pixmap.fill_path(&scene.paths[&t[0]], &paint, rule, total, clip.as_deref());
@@ -305,7 +305,7 @@ fn play(scene: &Scene, frame: &mut Frame, text: &mut Option<text::Text>) -> Resu
                 let anti_alias = t[i] == "1";
                 i += 1;
                 let Some(shader) = make_shader(t, &mut i) else { continue };
-                let paint = Paint { shader, blend_mode: blend, anti_alias, force_hq_pipeline: false };
+                let paint = Paint { shader, blend_mode: blend, anti_alias, force_hq_pipeline: false, ..Paint::default() };
                 frame.pixmap.stroke_path(&scene.paths[&t[0]], &paint, &stroke, total, clip.as_deref());
             }
             "image" => {
@@ -318,7 +318,7 @@ fn play(scene: &Scene, frame: &mut Frame, text: &mut Option<text::Text>) -> Resu
                 let image = &scene.images[&t[0]];
                 let (x, y, w, h) = (number(&t[1]), number(&t[2]), number(&t[3]), number(&t[4]));
                 let local = Transform::from_row(w / image.width() as f32, 0.0, 0.0, h / image.height() as f32, x, y);
-                let paint = Paint { shader: Pattern::new(image.as_ref(), SpreadMode::Pad, quality, number(&t[6]), local), blend_mode: blend, anti_alias: true, force_hq_pipeline: false };
+                let paint = Paint { shader: Pattern::new(image.as_ref(), SpreadMode::Pad, quality, number(&t[6]), local), blend_mode: blend, anti_alias: true, force_hq_pipeline: false, ..Paint::default() };
                 if let Some(rect) = Rect::from_xywh(x, y, w, h) {
                     frame.pixmap.fill_rect(rect, &paint, total, clip.as_deref());
                 }
