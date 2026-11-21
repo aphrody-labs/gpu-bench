@@ -7,7 +7,8 @@
 //   bun scripts/run.ts sizes                     shipped bytes (minified, brotli) into results/sizes.json
 //   bun scripts/run.ts report                    regenerate RESULTS.md from results/*.json
 //   options: --runs N (default 10 perf runs; GPU-timestamp runs default 3)
-import { existsSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, rmSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
 import { brotliCompressSync, constants } from "node:zlib";
 import { $ } from "bun";
 import { BIN, FR1_DIR, RESULTS, capture, ensureDir, fr1, log, machine, path, pins, withGpuMemory, writeJson } from "./lib/common.ts";
@@ -170,7 +171,12 @@ async function buildOnActions(name: string) {
   log(`actions run ${runId} for ${head}`);
   await capture(["gh", "run", "watch", runId, "--repo", "aphrody-labs/gpu-bench", "--exit-status"], { timeoutMs: 7_200_000 });
   const target = name === "bevy-web" ? path(".bin", "bevy-web") : BIN;
-  await capture(["gh", "run", "download", runId, "--repo", "aphrody-labs/gpu-bench", "-n", name, "-D", target]);
+  const staging = path(".bin", "_artifact", name);
+  rmSync(staging, { recursive: true, force: true });
+  await capture(["gh", "run", "download", runId, "--repo", "aphrody-labs/gpu-bench", "-n", name, "-D", staging]);
+  ensureDir(target);
+  for (const file of new Bun.Glob("**/*").scanSync({ cwd: staging, onlyFiles: true })) copyFileSync(join(staging, file), join(target, basename(file)));
+  rmSync(staging, { recursive: true, force: true });
 }
 async function syncCheck() {
   const head = (await capture(["git", "rev-parse", "HEAD"])).trim();
