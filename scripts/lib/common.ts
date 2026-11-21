@@ -6,7 +6,9 @@ import { $ } from "bun";
 export const ROOT = resolve(import.meta.dir, "..", "..");
 export const BIN = join(ROOT, ".bin");
 export const RESULTS = join(ROOT, "results");
-export const FR1_DIR = "~/gpu-bench/repo";
+// fr1 root disk is nearly full: every clone, cache, target dir and temp file lives on the XFS volume.
+export const FR1_ROOT = "/srv/xbuild/gpu-bench";
+export const FR1_DIR = `${FR1_ROOT}/repo`;
 
 export const path = (...parts: string[]) => join(ROOT, ...parts);
 export const ensureDir = (dir: string) => mkdirSync(dir, { recursive: true });
@@ -22,7 +24,7 @@ export async function capture(command: string[], options: { cwd?: string; env?: 
   return stdout;
 }
 
-export const fr1 = (script: string, timeoutMs = 3_600_000) => capture(["ssh", "fr1", `export PATH=$HOME/.cargo/bin:$HOME/.bun/bin:$PATH XWIN_ACCEPT_LICENSE=1; ${script}`], { timeoutMs });
+export const fr1 = (script: string, timeoutMs = 3_600_000) => capture(["ssh", "fr1", `export PATH=$HOME/.cargo/bin:$HOME/.bun/bin:$PATH XWIN_ACCEPT_LICENSE=1 XWIN_CACHE_DIR=${FR1_ROOT}/xwin-cache CARGO_TARGET_DIR=${FR1_ROOT}/target TMPDIR=${FR1_ROOT}/tmp; mkdir -p ${FR1_ROOT}/tmp; ${script}`], { timeoutMs });
 
 // ---- statistics -------------------------------------------------------------------------------------------------
 

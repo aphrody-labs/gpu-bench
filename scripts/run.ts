@@ -11,7 +11,7 @@ import { copyFileSync, existsSync, rmSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { brotliCompressSync, constants } from "node:zlib";
 import { $ } from "bun";
-import { BIN, FR1_DIR, RESULTS, capture, ensureDir, fr1, log, machine, path, pins, withGpuMemory, writeJson } from "./lib/common.ts";
+import { BIN, FR1_DIR, FR1_ROOT, RESULTS, capture, ensureDir, fr1, log, machine, path, pins, withGpuMemory, writeJson } from "./lib/common.ts";
 import { type BrowserKind, inBrowser, lastJson, runNative, startServer } from "./lib/host.ts";
 
 const argv = Bun.argv.slice(2);
@@ -106,7 +106,7 @@ async function syncFr1(submodules: string[]) {
   const remote = (await capture(["git", "rev-parse", "origin/main"])).trim();
   if (remote !== head) throw new Error(`push first: HEAD ${head} is not origin/main ${remote}`);
   const modules = submodules.map((name) => `vendor/${name}`).join(" ");
-  await fr1(`mkdir -p ~/gpu-bench && (test -d ${FR1_DIR}/.git || git clone -q https://github.com/aphrody-labs/gpu-bench.git ${FR1_DIR}) && cd ${FR1_DIR} && git fetch -q origin && git checkout -q -f ${head} && git submodule update --init --depth 1 ${modules}`);
+  await fr1(`mkdir -p ${FR1_ROOT} && (test -d ${FR1_DIR}/.git || git clone -q https://github.com/aphrody-labs/gpu-bench.git ${FR1_DIR}) && cd ${FR1_DIR} && git fetch -q origin && git checkout -q -f ${head} && git submodule update --init --depth 1 ${modules}`);
   return head;
 }
 
@@ -126,7 +126,7 @@ const BUILDERS: Record<string, () => Promise<void>> = {
   async wgpu() {
     await syncFr1(["wgpu"]);
     await fr1(`cd ${FR1_DIR}/bench/wgpu && cargo xwin build --release --target ${WIN}`);
-    await fetchFromFr1(`${FR1_DIR}/bench/wgpu/target/${WIN}/release/gpu-bench-wgpu.exe`, BIN);
+    await fetchFromFr1(`${FR1_ROOT}/target/${WIN}/release/gpu-bench-wgpu.exe`, BIN);
   },
   async dawn() {
     await syncFr1([]);
@@ -134,12 +134,12 @@ const BUILDERS: Record<string, () => Promise<void>> = {
     log(`dawn pin ${release}`);
     const tag = (await capture(["gh", "api", "repos/google/dawn/releases", "--paginate", "--jq", `.[] | select(.assets[].name | contains("${release}")) | .tag_name`])).trim().split("\n")[0]!;
     const asset = `Dawn-${release}-windows-latest-Release.tar.gz`;
-    const tools = "~/gpu-bench/tools/dawn-rel";
+    const tools = `${FR1_ROOT}/tools/dawn-rel`;
     await fr1(`mkdir -p ${tools} && cd ${tools} && (test -d Dawn-${release}-windows-latest-Release || (curl -sfL -o dawn.tar.gz https://github.com/google/dawn/releases/download/${tag}/${asset} && tar xzf dawn.tar.gz))`);
     const script = `
 set -e
 D=$(ls -d ${tools}/Dawn-${release}-windows-latest-Release)
-X=$HOME/.cache/cargo-xwin/xwin
+X=${FR1_ROOT}/xwin-cache/xwin
 cd ${FR1_DIR}/bench/dawn
 clang-cl --target=${WIN} /std:c++20 /O2 /EHsc /MD /DNOMINMAX /imsvc $X/crt/include /imsvc $X/sdk/include/ucrt /imsvc $X/sdk/include/um /imsvc $X/sdk/include/shared \\
   /I$D/include main.cpp /Fe:gpu-bench-dawn.exe -fuse-ld=lld-link /link /libpath:$X/crt/lib/x86_64 /libpath:$X/sdk/lib/um/x86_64 /libpath:$X/sdk/lib/ucrt/x86_64 \\
@@ -150,11 +150,11 @@ clang-cl --target=${WIN} /std:c++20 /O2 /EHsc /MD /DNOMINMAX /imsvc $X/crt/inclu
   async "bevy-native"() {
     await syncFr1(["bevy"]);
     await fr1(`cd ${FR1_DIR}/scenes/bevy && cargo xwin build --release --target ${WIN} --features native`);
-    await fetchFromFr1(`${FR1_DIR}/scenes/bevy/target/${WIN}/release/gpu-bench-bevy.exe`, BIN);
+    await fetchFromFr1(`${FR1_ROOT}/target/${WIN}/release/gpu-bench-bevy.exe`, BIN);
   },
   async "bevy-web"() {
     await syncFr1(["bevy"]);
-    await fr1(`cd ${FR1_DIR}/scenes/bevy && cargo build --release --target wasm32-unknown-unknown --features web && rm -rf web-dist && wasm-bindgen --target web --no-typescript --out-dir web-dist target/wasm32-unknown-unknown/release/gpu_bench_bevy.wasm && wasm-opt -O3 --all-features -o web-dist/gpu_bench_bevy_bg.wasm web-dist/gpu_bench_bevy_bg.wasm`);
+    await fr1(`cd ${FR1_DIR}/scenes/bevy && cargo build --release --target wasm32-unknown-unknown --features web && rm -rf web-dist && wasm-bindgen --target web --no-typescript --out-dir web-dist ${FR1_ROOT}/target/wasm32-unknown-unknown/release/gpu_bench_bevy.wasm && wasm-opt -O3 --all-features -o web-dist/gpu_bench_bevy_bg.wasm web-dist/gpu_bench_bevy_bg.wasm`);
     await $`rm -rf ${path(".bin", "bevy-web")}`;
     await fetchFromFr1(`${FR1_DIR}/scenes/bevy/web-dist`, path(".bin", "bevy-web"));
   },
