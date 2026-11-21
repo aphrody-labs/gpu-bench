@@ -36,6 +36,8 @@ struct Sample {
 };
 using Encode = std::function<void(wgpu::CommandEncoder&, const wgpu::PassTimestampWrites*)>;
 
+std::vector<std::string>* gErrors = nullptr;
+
 std::string ReadFile(const std::string& path) {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
@@ -293,9 +295,10 @@ int main(int argc, char** argv) {
     deviceDescriptor.requiredLimits = &limits;
     deviceDescriptor.requiredFeatureCount = bench.timestamps ? 1 : 0;
     deviceDescriptor.requiredFeatures = &feature;
-    deviceDescriptor.SetUncapturedErrorCallback([&](const wgpu::Device&, wgpu::ErrorType, wgpu::StringView message) { bench.errors.push_back(std::string(message.data, message.length)); });
-    deviceDescriptor.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous, [&](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView message) {
-        if (reason != wgpu::DeviceLostReason::Destroyed) bench.errors.push_back("device lost: " + std::string(message.data, message.length));
+    gErrors = &bench.errors;
+    deviceDescriptor.SetUncapturedErrorCallback([](const wgpu::Device&, wgpu::ErrorType, wgpu::StringView message) { gErrors->push_back(std::string(message.data, message.length)); });
+    deviceDescriptor.SetDeviceLostCallback(wgpu::CallbackMode::AllowSpontaneous, [](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView message) {
+        if (reason != wgpu::DeviceLostReason::Destroyed) gErrors->push_back("device lost: " + std::string(message.data, message.length));
     });
     bench.Wait(adapter.RequestDevice(&deviceDescriptor, wgpu::CallbackMode::WaitAnyOnly, [&](wgpu::RequestDeviceStatus status, wgpu::Device result, wgpu::StringView message) {
         if (status == wgpu::RequestDeviceStatus::Success) bench.device = std::move(result);
