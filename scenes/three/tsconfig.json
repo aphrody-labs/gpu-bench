@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "esnext", "module": "esnext", "moduleResolution": "bundler", "allowJs": true, "noEmit": true, "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "three": ["../../vendor/three.js/build/three.webgpu.js"],
+      "three/webgpu": ["../../vendor/three.js/build/three.webgpu.js"],
+      "three/tsl": ["../../vendor/three.js/build/three.tsl.js"],
+      "three/addons/*": ["../../vendor/three.js/examples/jsm/*"]
+    }
+  },
+  "include": ["*.ts"]
+}

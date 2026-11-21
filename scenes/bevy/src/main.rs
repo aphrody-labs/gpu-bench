@@ -5,7 +5,7 @@
 use std::time::Instant;
 
 use bevy::{
-    asset::AssetPlugin,
+    asset::{AssetMetaCheck, AssetPlugin},
     camera::Exposure,
     core_pipeline::tonemapping::Tonemapping,
     diagnostic::DiagnosticsStore,
@@ -24,6 +24,7 @@ struct Config {
     n: usize,
     frames: usize,
     warmup: usize,
+    seconds: f64,
     gpu: bool,
 }
 
@@ -33,6 +34,7 @@ struct Bench {
     frame: usize,
     last: Instant,
     frame_start: Instant,
+    measure_start: Option<Instant>,
     process_start: Instant,
     frame_ms: Vec<f64>,
     cpu_ms: Vec<f64>,
@@ -77,7 +79,7 @@ fn since_origin(process_start: Instant) -> f64 {
 fn main() {
     let process_start = Instant::now();
     let number = |name: &str, default: usize| query(name).and_then(|value| value.parse().ok()).unwrap_or(default);
-    let config = Config { n: number("n", 1000), frames: number("frames", 600), warmup: number("warmup", 120), gpu: query("gpu").is_some_and(|value| value != "0") };
+    let config = Config { n: number("n", 1000), frames: number("frames", 600), warmup: number("warmup", 60), seconds: number("seconds", 20) as f64, gpu: query("gpu").is_some_and(|value| value != "0") };
 
     let mut window = Window { present_mode: PresentMode::AutoNoVsync, resolution: WindowResolution::new(1920, 1080), title: "gpu-bench".into(), ..default() };
     #[cfg(target_arch = "wasm32")]
@@ -90,7 +92,7 @@ fn main() {
 
     let assets = query("assets").unwrap_or_else(|| "assets".to_string());
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins.set(WindowPlugin { primary_window: Some(window), ..default() }).set(AssetPlugin { file_path: assets, ..default() }))
+    app.add_plugins(DefaultPlugins.set(WindowPlugin { primary_window: Some(window), ..default() }).set(AssetPlugin { file_path: assets, meta_check: AssetMetaCheck::Never, ..default() }))
         .insert_resource(WinitSettings::continuous())
         .insert_resource(DirectionalLightShadowMap { size: 2048 })
         .insert_resource(GlobalAmbientLight { color: Color::WHITE, brightness: 300.0, ..default() })
@@ -100,6 +102,7 @@ fn main() {
             frame: 0,
             last: process_start,
             frame_start: process_start,
+            measure_start: None,
             process_start,
             frame_ms: Vec::new(),
             cpu_ms: Vec::new(),
@@ -157,6 +160,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials
 fn frame_start(mut bench: ResMut<Bench>) {
     let now = Instant::now();
     if bench.frame > bench.config.warmup {
+        bench.measure_start.get_or_insert(now);
         let delta = now.duration_since(bench.last).as_secs_f64() * 1000.0;
         bench.frame_ms.push(delta);
     }
@@ -198,10 +202,11 @@ fn frame_end(mut bench: ResMut<Bench>, diagnostics: Res<DiagnosticsStore>, mut e
         let total: f64 = leaves.filter_map(|path| diagnostics.iter().find(|d| d.path().as_str() == path).and_then(|d| d.value())).sum();
         bench.gpu_ms.push(total);
     }
-    if bench.frame_ms.len() >= bench.config.frames {
+    let timed_out = bench.frame_ms.len() >= 30 && bench.measure_start.is_some_and(|start| start.elapsed().as_secs_f64() > bench.config.seconds);
+    if bench.frame_ms.len() >= bench.config.frames || timed_out {
         let text = serde_json::json!({
             "labels": { "host": if cfg!(target_arch = "wasm32") { "chrome" } else { "native" }, "engine": "bevy", "backend": bench.backend, "adapter": bench.adapter, "bevy": "0.20.1" },
-            "config": { "n": bench.config.n, "frames": bench.config.frames, "warmup": bench.config.warmup, "gpu": bench.config.gpu },
+            "config": { "n": bench.config.n, "frames": bench.config.frames, "warmup": bench.config.warmup, "seconds": bench.config.seconds, "gpu": bench.config.gpu },
             "firstFrameMs": bench.first_frame_ms,
             "helmetMs": bench.helmet_ms,
             "frameMs": bench.frame_ms,
