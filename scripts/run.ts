@@ -18,7 +18,7 @@ const flag = (name: string, fallback: number) => {
   const at = argv.indexOf(`--${name}`);
   return at >= 0 ? Number(argv[at + 1]) : fallback;
 };
-const positional = argv.filter((arg, index) => !arg.startsWith("--") && !(index > 0 && argv[index - 1]!.startsWith("--")));
+const positional = argv.filter((arg, index) => !arg.startsWith("--") && !(index > 0 && argv[index - 1]!.startsWith("--") && argv[index - 1] !== "--help"));
 const [command = "help", ...targets] = positional;
 const RUNS = flag("runs", 10);
 const GPU_RUNS = flag("gpu-runs", 3);
@@ -158,13 +158,34 @@ clang-cl --target=${WIN} /std:c++20 /O2 /EHsc /MD /DNOMINMAX /imsvc $X/crt/inclu
   },
 };
 
+const REMOTE = argv.includes("--remote") ? argv[argv.indexOf("--remote") + 1] : "fr1";
+
+/** GitHub Actions fallback for fr1 builds: dispatches build.yml for the target, waits, downloads the artifact into .bin. */
+async function buildOnActions(name: string) {
+  const head = (await syncCheck());
+  await capture(["gh", "workflow", "run", "build.yml", "--repo", "aphrody-labs/gpu-bench", "--ref", "main", "-f", `target=${name}`]);
+  await Bun.sleep(8000);
+  const runId = (await capture(["gh", "run", "list", "--repo", "aphrody-labs/gpu-bench", "--workflow", "build.yml", "--limit", "1", "--json", "databaseId,headSha", "--jq", ".[0].databaseId"])).trim();
+  log(`actions run ${runId} for ${head}`);
+  await capture(["gh", "run", "watch", runId, "--repo", "aphrody-labs/gpu-bench", "--exit-status"], { timeoutMs: 7_200_000 });
+  const target = name === "bevy-web" ? path(".bin", "bevy-web") : BIN;
+  await capture(["gh", "run", "download", runId, "--repo", "aphrody-labs/gpu-bench", "-n", name, "-D", target]);
+}
+async function syncCheck() {
+  const head = (await capture(["git", "rev-parse", "HEAD"])).trim();
+  await capture(["git", "fetch", "-q", "origin", "main"]);
+  if ((await capture(["git", "rev-parse", "origin/main"])).trim() !== head) throw new Error("push first: actions builds origin/main");
+  return head;
+}
+
 async function build(names: string[]) {
   ensureDir(BIN);
   for (const name of names.length ? names : Object.keys(BUILDERS)) {
     const builder = BUILDERS[name];
     if (!builder) throw new Error(`unknown build target ${name}; known: ${Object.keys(BUILDERS).join(" ")}`);
-    log(`build ${name}`);
-    await builder();
+    log(`build ${name} (${["js", "three"].includes(name) ? "local bundle" : REMOTE})`);
+    if (REMOTE === "actions" && !["js", "three"].includes(name)) await buildOnActions(name);
+    else await builder();
   }
 }
 

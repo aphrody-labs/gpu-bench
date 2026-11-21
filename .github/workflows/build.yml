@@ -1,0 +1,89 @@
+# Windows binaries and the Bevy wasm bundle, built on GitHub runners when fr1 is saturated. `bun scripts/run.ts build --remote actions <target>` drives this.
+name: build
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "wgpu | dawn | bevy-native | bevy-web | all"
+        default: all
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  wgpu:
+    if: inputs.target == 'all' || inputs.target == 'wgpu'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: false }
+      - run: git submodule update --init --depth 1 vendor/wgpu
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: "bench/wgpu" }
+      - run: cargo build --release --manifest-path bench/wgpu/Cargo.toml
+      - run: rustc -Vv > bench/wgpu/target/release/rustc.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: wgpu, path: "bench/wgpu/target/release/gpu-bench-wgpu.exe\nbench/wgpu/target/release/rustc.txt" }
+
+  dawn:
+    if: inputs.target == 'all' || inputs.target == 'dawn'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: false }
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Fetch Dawn prebuilt matching the pinned submodule commit
+        shell: bash
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          SHA=$(git ls-tree HEAD vendor/dawn | awk '{print $3}')
+          TAG=$(gh api repos/google/dawn/releases --paginate --jq ".[] | select(.assets[].name | contains(\"$SHA\")) | .tag_name" | head -1)
+          echo "dawn $SHA release $TAG"
+          gh release download "$TAG" --repo google/dawn --pattern "Dawn-$SHA-windows-latest-Release.tar.gz"
+          tar xzf Dawn-$SHA-windows-latest-Release.tar.gz
+          mv Dawn-$SHA-windows-latest-Release dawn-prebuilt
+          echo "$SHA $TAG" > dawn-prebuilt/PIN
+      - name: Build
+        shell: cmd
+        run: |
+          cd bench\dawn
+          cl /nologo /std:c++20 /O2 /EHsc /MD /DNOMINMAX /I ..\..\dawn-prebuilt\include main.cpp /Fe:gpu-bench-dawn.exe /link ..\..\dawn-prebuilt\lib\webgpu_dawn.lib user32.lib gdi32.lib dxgi.lib d3d12.lib d3d11.lib dxguid.lib ole32.lib advapi32.lib shell32.lib ws2_32.lib dbghelp.lib version.lib
+      - uses: actions/upload-artifact@v4
+        with: { name: dawn, path: "bench/dawn/gpu-bench-dawn.exe\ndawn-prebuilt/PIN" }
+
+  bevy-native:
+    if: inputs.target == 'all' || inputs.target == 'bevy-native'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: false }
+      - run: git submodule update --init --depth 1 vendor/bevy
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: "scenes/bevy" }
+      - run: cargo build --release --manifest-path scenes/bevy/Cargo.toml --features native
+      - uses: actions/upload-artifact@v4
+        with: { name: bevy-native, path: "scenes/bevy/target/release/gpu-bench-bevy.exe" }
+
+  bevy-web:
+    if: inputs.target == 'all' || inputs.target == 'bevy-web'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: false }
+      - run: git submodule update --init --depth 1 vendor/bevy
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: "scenes/bevy" }
+      - run: cargo install wasm-bindgen-cli --version =0.2.130 --locked
+      - run: sudo apt-get install -y binaryen
+      - run: |
+          cd scenes/bevy
+          cargo build --release --target wasm32-unknown-unknown --features web
+          wasm-bindgen --target web --no-typescript --out-dir web-dist target/wasm32-unknown-unknown/release/gpu_bench_bevy.wasm
+          wasm-opt -O3 --all-features -o web-dist/gpu_bench_bevy_bg.wasm web-dist/gpu_bench_bevy_bg.wasm
+          wasm-opt --version > web-dist/wasm-opt.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: bevy-web, path: scenes/bevy/web-dist }
