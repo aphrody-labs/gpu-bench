@@ -1,0 +1,43 @@
+[package]
+name = "raster-rust"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# tiny-skia and cosmic-text are pinned exactly as obscura-render pins them (Cargo.lock is seeded from vendor/obscura).
+[dependencies]
+tiny-skia = "=0.12.0"
+cosmic-text = { version = "=0.14.2", path = "../../vendor/obscura/vendor/cosmic-text", default-features = false, features = ["std", "swash", "shape-run-cache"], optional = true }
+obscura-render = { path = "../../vendor/obscura/crates/obscura-render", features = ["paint"], optional = true }
+obscura-dom = { path = "../../vendor/obscura/crates/obscura-dom", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[features]
+default = ["text"]
+text = ["dep:cosmic-text"]
+page = ["dep:obscura-render", "dep:obscura-dom", "text"]
+
+[[bin]]
+name = "bench-tiny"
+path = "src/bin/bench.rs"
+
+[[bin]]
+name = "page-obscura"
+path = "src/bin/page.rs"
+required-features = ["page"]
+
+[workspace]
+
+# Same as obscura's [profile.release].
+[profile.release]
+panic = "unwind"
+
+# Same as obscura's [profile.release-dist] (what the shipped archives use).
+[profile.release-dist]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
