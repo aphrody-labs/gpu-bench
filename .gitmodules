@@ -14,3 +14,11 @@
 	path = vendor/three.js
 	url = ../three.js.git
 	branch = main
+[submodule "vendor/skia"]
+	path = vendor/skia
+	url = ../skia.git
+	branch = main
+[submodule "vendor/obscura"]
+	path = vendor/obscura
+	url = ../obscura.git
+	branch = main
