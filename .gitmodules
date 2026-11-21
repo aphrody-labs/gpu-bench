@@ -1,0 +1,16 @@
+[submodule "vendor/dawn"]
+	path = vendor/dawn
+	url = ../dawn.git
+	branch = main
+[submodule "vendor/wgpu"]
+	path = vendor/wgpu
+	url = ../wgpu.git
+	branch = trunk
+[submodule "vendor/bevy"]
+	path = vendor/bevy
+	url = ../bevy.git
+	branch = main
+[submodule "vendor/three.js"]
+	path = vendor/three.js
+	url = ../three.js.git
+	branch = main
