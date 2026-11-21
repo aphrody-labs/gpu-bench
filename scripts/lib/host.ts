@@ -94,8 +94,7 @@ export async function inBrowser(kind: BrowserKind, server: ResultServer, url: st
       "--disable-background-timer-throttling",
       "--disable-renderer-backgrounding",
       "--disable-backgrounding-occluded-windows",
-      "--window-position=0,0",
-      "--window-size=1936,1200",
+      "--kiosk",
       url,
     ];
   } else {
@@ -114,7 +113,7 @@ export async function inBrowser(kind: BrowserKind, server: ResultServer, url: st
         'user_pref("privacy.reduceTimerPrecision", true);',
       ].join("\n"),
     );
-    command = [FIREFOX, "-no-remote", "-profile", profile, "-new-window", url];
+    command = [FIREFOX, "-no-remote", "-profile", profile, "-kiosk", url];
   }
   const spawnedAt = performance.now();
   const child = Bun.spawn(command, { stdout: "ignore", stderr: "ignore" });
