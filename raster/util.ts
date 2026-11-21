@@ -167,7 +167,7 @@ export function diffImage(reference: Uint8Array, other: Uint8Array, width: numbe
     for (let channel = 0; channel < 4; channel++) max = Math.max(max, Math.abs(reference[pixel + channel]! - other[pixel + channel]!));
     const level = Math.min(255, max * gain);
     data[pixel] = level;
-    data[pixel + 1] = max > 0 ? Math.min(255, level + 40) * 0 + level : 0;
+    data[pixel + 1] = level;
     data[pixel + 2] = level;
     data[pixel + 3] = 255;
   }
