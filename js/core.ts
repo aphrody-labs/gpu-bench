@@ -17,8 +17,9 @@ export interface RunResult {
 }
 
 export const SIZES = { elements: 1 << 26, matrix: 2048, width: 1920, height: 1080, instances: 100_000 };
-const ITERATIONS = { vecadd: 20, matmul: 20, reduce: 30, cubes: 60, fullscreen: 60, pipelines: 15, modules: 20, bufferWindows: 5, bufferWindowMs: 500 };
+const ITERATIONS = { vecadd: 50, matmul: 50, reduce: 100, cubes: 200, fullscreen: 100, pipelines: 15, modules: 20, bufferWindows: 5, bufferWindowMs: 500 };
 const WARMUP = 5;
+const WARMUP_MS = 1000;
 const STORAGE_LIMIT = 268_435_456;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -78,6 +79,11 @@ export async function runAll(host: Host, only?: Set<string>): Promise<RunResult>
   };
   const timer = new Timer(device, timestampQuery);
   const wanted = (name: string) => !only || only.has(name);
+  /** At least WARMUP passes and WARMUP_MS of continuous work, so the GPU clocks have ramped before anything is timed. */
+  const warm = async (encode: Parameters<Timer["measure"]>[0]) => {
+    const start = performance.now();
+    for (let i = 0; i < WARMUP || performance.now() - start < WARMUP_MS; i++) await timer.measure(encode);
+  };
 
   const sources = Object.fromEntries(
     await Promise.all(["init", "vecadd", "matinit", "matmul", "reduce1", "reduce2", "cubes", "fullscreen"].map(async (name) => [name, await host.wgsl(name)])),
@@ -122,7 +128,7 @@ export async function runAll(host: Host, only?: Set<string>): Promise<RunResult>
     if (wanted("vecadd")) {
       const pipeline = compute(sources.vecadd!);
       const group = bind(pipeline, a, b, c);
-      for (let i = 0; i < WARMUP; i++) await timer.measure(dispatch(pipeline, [512, 512, 1], group));
+      await warm(dispatch(pipeline, [512, 512, 1], group));
       for (let i = 0; i < ITERATIONS.vecadd; i++) record("vecadd_64M", await timer.measure(dispatch(pipeline, [512, 512, 1], group)));
       const head = new Float32Array(await readBack(c, 0, 4096));
       const tail = new Float32Array(await readBack(c, bytes - 4096, 4096));
@@ -146,7 +152,7 @@ export async function runAll(host: Host, only?: Set<string>): Promise<RunResult>
         pass.dispatchWorkgroups(1);
         pass.end();
       };
-      for (let i = 0; i < WARMUP; i++) await timer.measure(encode);
+      await warm(encode);
       for (let i = 0; i < ITERATIONS.reduce; i++) record("reduce_64M", await timer.measure(encode));
       checks.reduce_sum = new Float32Array(await readBack(result, 0, 4))[0];
       checks.reduce_ok = checks.reduce_sum === SIZES.elements;
@@ -165,7 +171,7 @@ export async function runAll(host: Host, only?: Set<string>): Promise<RunResult>
     await timer.measure(dispatch(initPipeline, [128, 128, 1], bind(initPipeline, a, b)));
     const pipeline = compute(sources.matmul!);
     const group = bind(pipeline, a, b, c);
-    for (let i = 0; i < WARMUP; i++) await timer.measure(dispatch(pipeline, [128, 128, 1], group));
+    await warm(dispatch(pipeline, [128, 128, 1], group));
     for (let i = 0; i < ITERATIONS.matmul; i++) record("matmul_2048", await timer.measure(dispatch(pipeline, [128, 128, 1], group)));
     const probes: Array<[number, number]> = [[0, 0], [1, 2047], [1023, 1024], [2047, 2047], [700, 33]];
     const out = new Float32Array(await readBack(c, 0, n * n * 4));
@@ -216,7 +222,7 @@ export async function runAll(host: Host, only?: Set<string>): Promise<RunResult>
     const pipeline = renderPipeline(sources.cubes!, true);
     const group = bind(pipeline, instances);
     const encode = draw(pipeline, group, 36, count, true);
-    for (let i = 0; i < WARMUP; i++) await timer.measure(encode);
+    await warm(encode);
     for (let i = 0; i < ITERATIONS.cubes; i++) record("cubes_100k_1080p", await timer.measure(encode));
     checks.cubes_lit_pixels = await litPixels(device, color);
     instances.destroy();
@@ -224,7 +230,7 @@ export async function runAll(host: Host, only?: Set<string>): Promise<RunResult>
   if (wanted("fullscreen")) {
     const pipeline = renderPipeline(sources.fullscreen!, false);
     const encode = draw(pipeline, undefined, 3, 1, false);
-    for (let i = 0; i < WARMUP; i++) await timer.measure(encode);
+    await warm(encode);
     for (let i = 0; i < ITERATIONS.fullscreen; i++) record("fullscreen_1080p", await timer.measure(encode));
     checks.fullscreen_lit_pixels = await litPixels(device, color);
   }

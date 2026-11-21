@@ -6,7 +6,7 @@ import { runAll } from "./core.ts";
 const argument = (name: string) => Bun.argv[Bun.argv.indexOf(`--${name}`) + 1];
 const backend = Bun.argv.includes("--backend") ? argument("backend")! : "d3d12";
 Object.assign(globalThis, globals);
-const gpu = create([`backend=${backend}`]);
+const gpu = create([`backend=${backend}`, "disable-dawn-features=timestamp_quantization"]);
 const only = Bun.argv.includes("--only") ? new Set(argument("only")!.split(",")) : undefined;
 const version = (await Bun.file(join(import.meta.dir, "node_modules/webgpu/package.json")).json()).version as string;
 const result = await runAll(

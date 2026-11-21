@@ -25,6 +25,7 @@ constexpr uint32_t kHeight = 1080;
 constexpr uint32_t kInstances = 100000;
 constexpr uint64_t kStorageLimit = 268435456;
 constexpr int kWarmup = 5;
+constexpr double kWarmupMs = 1000.0;
 
 using Clock = std::chrono::steady_clock;
 double Ms(Clock::time_point start) {
@@ -122,6 +123,12 @@ struct Bench {
         }
         sample.wall = Ms(start);
         return sample;
+    }
+
+    // At least kWarmup passes and kWarmupMs of continuous work, so the GPU clocks have ramped before anything is timed.
+    void Warm(const Encode& encode) {
+        const auto start = Clock::now();
+        for (int i = 0; i < kWarmup || Ms(start) < kWarmupMs; i++) Measure(encode);
     }
 
     wgpu::Buffer Storage(uint64_t size) {
@@ -292,6 +299,12 @@ int main(int argc, char** argv) {
     limits.maxBufferSize = kStorageLimit;
     wgpu::FeatureName feature = wgpu::FeatureName::TimestampQuery;
     wgpu::DeviceDescriptor deviceDescriptor;
+    // Dawn quantizes timestamp queries by default (browser security); a benchmark needs the raw ticks.
+    const char* disabledToggles[] = {"timestamp_quantization"};
+    wgpu::DawnTogglesDescriptor toggles;
+    toggles.disabledToggleCount = 1;
+    toggles.disabledToggles = disabledToggles;
+    deviceDescriptor.nextInChain = &toggles;
     deviceDescriptor.requiredLimits = &limits;
     deviceDescriptor.requiredFeatureCount = bench.timestamps ? 1 : 0;
     deviceDescriptor.requiredFeatures = &feature;
@@ -334,8 +347,8 @@ int main(int argc, char** argv) {
         if (wanted("vecadd")) {
             wgpu::ComputePipeline pipeline = bench.ComputePipelineOf(bench.Module(vecadd));
             const Encode encode = bench.Dispatch(pipeline, 512, 512, bench.Bind(pipeline, {a, b, c}));
-            for (int i = 0; i < kWarmup; i++) bench.Measure(encode);
-            for (int i = 0; i < 20; i++) bench.Record("vecadd_64M", bench.Measure(encode));
+            bench.Warm(encode);
+            for (int i = 0; i < 50; i++) bench.Record("vecadd_64M", bench.Measure(encode));
             const auto head = bench.ReadBack(c, 0, 4096), tail = bench.ReadBack(c, bytes - 4096, 4096);
             bool ok = true;
             for (uint64_t i = 0; i < 1024; i++) {
@@ -362,8 +375,8 @@ int main(int argc, char** argv) {
                 pass.DispatchWorkgroups(1, 1, 1);
                 pass.End();
             };
-            for (int i = 0; i < kWarmup; i++) bench.Measure(encode);
-            for (int i = 0; i < 30; i++) bench.Record("reduce_64M", bench.Measure(encode));
+            bench.Warm(encode);
+            for (int i = 0; i < 100; i++) bench.Record("reduce_64M", bench.Measure(encode));
             float sum;
             const auto raw = bench.ReadBack(result, 0, 4);
             std::memcpy(&sum, raw.data(), 4);
@@ -379,8 +392,8 @@ int main(int argc, char** argv) {
         bench.Measure(bench.Dispatch(initPipeline, 128, 128, bench.Bind(initPipeline, {a, b})));
         wgpu::ComputePipeline pipeline = bench.ComputePipelineOf(bench.Module(matmul));
         const Encode encode = bench.Dispatch(pipeline, 128, 128, bench.Bind(pipeline, {a, b, c}));
-        for (int i = 0; i < kWarmup; i++) bench.Measure(encode);
-        for (int i = 0; i < 20; i++) bench.Record("matmul_2048", bench.Measure(encode));
+        bench.Warm(encode);
+        for (int i = 0; i < 50; i++) bench.Record("matmul_2048", bench.Measure(encode));
         const auto raw = bench.ReadBack(c, 0, size);
         const float* out = reinterpret_cast<const float*>(raw.data());
         bool ok = true;
@@ -442,15 +455,15 @@ int main(int argc, char** argv) {
         wgpu::RenderPipeline pipeline = bench.RenderPipelineOf(bench.Module(cubes), true);
         wgpu::BindGroup group = bench.BindLayout(pipeline.GetBindGroupLayout(0), {instances});
         const Encode encode = draw(pipeline, group, true, 36, kInstances, true);
-        for (int i = 0; i < kWarmup; i++) bench.Measure(encode);
-        for (int i = 0; i < 60; i++) bench.Record("cubes_100k_1080p", bench.Measure(encode));
+        bench.Warm(encode);
+        for (int i = 0; i < 200; i++) bench.Record("cubes_100k_1080p", bench.Measure(encode));
         bench.checks["cubes_lit_pixels"] = std::to_string(bench.LitPixels(color));
     }
     if (wanted("fullscreen")) {
         wgpu::RenderPipeline pipeline = bench.RenderPipelineOf(bench.Module(fullscreen), false);
         const Encode encode = draw(pipeline, wgpu::BindGroup(), false, 3, 1, false);
-        for (int i = 0; i < kWarmup; i++) bench.Measure(encode);
-        for (int i = 0; i < 60; i++) bench.Record("fullscreen_1080p", bench.Measure(encode));
+        bench.Warm(encode);
+        for (int i = 0; i < 100; i++) bench.Record("fullscreen_1080p", bench.Measure(encode));
         bench.checks["fullscreen_lit_pixels"] = std::to_string(bench.LitPixels(color));
     }
 

@@ -14,6 +14,7 @@ const HEIGHT: u32 = 1080;
 const INSTANCES: u32 = 100_000;
 const STORAGE_LIMIT: u64 = 268_435_456;
 const WARMUP: usize = 5;
+const WARMUP_MS: f64 = 1000.0;
 
 struct Sample {
     cpu: f64,
@@ -89,6 +90,17 @@ impl Bench {
             }
         };
         Ok(Sample { cpu, wall: ms(start), gpu })
+    }
+
+    /// At least WARMUP passes and WARMUP_MS of continuous work, so the GPU clocks have ramped before anything is timed.
+    fn warm(&self, encode: Encode) -> Result<()> {
+        let start = Instant::now();
+        let mut passes = 0;
+        while passes < WARMUP || ms(start) < WARMUP_MS {
+            self.measure(encode)?;
+            passes += 1;
+        }
+        Ok(())
     }
 
     fn storage(&self, size: u64) -> Buffer {
@@ -223,10 +235,8 @@ fn run(dir: PathBuf, backend: &str, only: Option<Vec<String>>) -> Result<Value> 
             let pipeline = bench.compute(&vecadd);
             let group = bind(&bench.device, &pipeline.get_bind_group_layout(0), &[&a, &b, &c]);
             let encode = dispatch(&pipeline, [512, 512, 1], &group);
-            for _ in 0..WARMUP {
-                bench.measure(&encode)?;
-            }
-            for _ in 0..20 {
+            bench.warm(&encode)?;
+            for _ in 0..50 {
                 let sample = bench.measure(&encode)?;
                 bench.record("vecadd_64M", sample);
             }
@@ -254,10 +264,8 @@ fn run(dir: PathBuf, backend: &str, only: Option<Vec<String>>) -> Result<Value> 
                 pass.set_bind_group(0, &group2, &[]);
                 pass.dispatch_workgroups(1, 1, 1);
             };
-            for _ in 0..WARMUP {
-                bench.measure(&encode)?;
-            }
-            for _ in 0..30 {
+            bench.warm(&encode)?;
+            for _ in 0..100 {
                 let sample = bench.measure(&encode)?;
                 bench.record("reduce_64M", sample);
             }
@@ -276,10 +284,8 @@ fn run(dir: PathBuf, backend: &str, only: Option<Vec<String>>) -> Result<Value> 
         let pipeline = bench.compute(&matmul);
         let group = bind(&bench.device, &pipeline.get_bind_group_layout(0), &[&a, &b, &c]);
         let encode = dispatch(&pipeline, [128, 128, 1], &group);
-        for _ in 0..WARMUP {
-            bench.measure(&encode)?;
-        }
-        for _ in 0..20 {
+        bench.warm(&encode)?;
+        for _ in 0..50 {
             let sample = bench.measure(&encode)?;
             bench.record("matmul_2048", sample);
         }
@@ -346,10 +352,8 @@ fn run(dir: PathBuf, backend: &str, only: Option<Vec<String>>) -> Result<Value> 
         let pipeline = bench.render(&bench.module(&cubes), true);
         let group = bind(&bench.device, &pipeline.get_bind_group_layout(0), &[&instances]);
         let encode = draw(&pipeline, Some(&group), 36, INSTANCES, true);
-        for _ in 0..WARMUP {
-            bench.measure(&encode)?;
-        }
-        for _ in 0..60 {
+        bench.warm(&encode)?;
+        for _ in 0..200 {
             let sample = bench.measure(&encode)?;
             bench.record("cubes_100k_1080p", sample);
         }
@@ -359,10 +363,8 @@ fn run(dir: PathBuf, backend: &str, only: Option<Vec<String>>) -> Result<Value> 
     if wanted("fullscreen") {
         let pipeline = bench.render(&bench.module(&fullscreen), false);
         let encode = draw(&pipeline, None, 3, 1, false);
-        for _ in 0..WARMUP {
-            bench.measure(&encode)?;
-        }
-        for _ in 0..60 {
+        bench.warm(&encode)?;
+        for _ in 0..100 {
             let sample = bench.measure(&encode)?;
             bench.record("fullscreen_1080p", sample);
         }
