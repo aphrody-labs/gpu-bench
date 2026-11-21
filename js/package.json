@@ -1,0 +1,13 @@
+{
+  "name": "gpu-bench-js",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "webgpu": "0.6.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.5",
+    "@webgpu/types": "^0.1.74",
+    "typescript": "^7.0.2"
+  }
+}

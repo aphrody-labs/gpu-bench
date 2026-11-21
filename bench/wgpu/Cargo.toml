@@ -1,0 +1,21 @@
+[package]
+name = "gpu-bench-wgpu"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "gpu-bench-wgpu"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+pollster = "0.4"
+serde_json = "1"
+wgpu = { path = "../../vendor/wgpu/wgpu", default-features = false, features = ["std", "parking_lot", "dx12", "vulkan", "wgsl"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
