@@ -183,7 +183,7 @@ fn run(dir: PathBuf, backend: &str, only: Option<Vec<String>>) -> Result<Value> 
     let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions { power_preference: PowerPreference::HighPerformance, ..Default::default() }))?;
     let info = adapter.get_info();
     let timestamp_query = adapter.features().contains(Features::TIMESTAMP_QUERY);
-    let limits = Limits { max_storage_buffer_binding_size: STORAGE_LIMIT as u32, max_buffer_size: STORAGE_LIMIT, ..Limits::default() };
+    let limits = Limits { max_storage_buffer_binding_size: STORAGE_LIMIT, max_buffer_size: STORAGE_LIMIT, ..Limits::default() };
     let (device, queue) = pollster::block_on(adapter.request_device(&DeviceDescriptor {
         label: None,
         required_features: if timestamp_query { Features::TIMESTAMP_QUERY } else { Features::empty() },
