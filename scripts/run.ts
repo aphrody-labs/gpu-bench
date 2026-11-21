@@ -2,6 +2,7 @@
 // Rebuilds and reruns every benchmark. Builds happen on fr1 (cargo-xwin, clang-cl, wasm32); runs happen on this machine's GPU.
 //   bun scripts/run.ts setup                     init submodules (shallow), install JS deps, fetch the Dawn prebuilt, bundle pages
 //   bun scripts/run.ts build [target...]         targets: wgpu dawn bevy-native bevy-web three js   (default: all)
+//   bun scripts/run.ts fetch <artifact> <run-id> download an Actions artifact into .bin
 //   bun scripts/run.ts bench <suite|config>...   suites: a, b; or config ids (see `list`)
 //   bun scripts/run.ts list                      print config ids
 //   bun scripts/run.ts sizes                     shipped bytes (minified, brotli) into results/sizes.json
@@ -91,10 +92,18 @@ const B_CONFIGS: SuiteB[] = SIZES.flatMap((n) => [
 
 // ---- commands -----------------------------------------------------------------------------------------------------
 
+/** Dawn's DynamicLib only searches the application directory (error 87 elsewhere), so the DLLs it loads must sit next to the exe. */
+function stageDlls() {
+  const sdk = "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64";
+  const sources = [["vulkan-1.dll", "C:\\Windows\\System32"], ["d3dcompiler_47.dll", "C:\\Windows\\System32"], ["dxcompiler.dll", sdk], ["dxil.dll", sdk]];
+  ensureDir(BIN);
+  for (const [name, dir] of sources) if (existsSync(join(dir!, name!))) copyFileSync(join(dir!, name!), join(BIN, name!));
+}
+
 async function setup() {
   await capture(["git", "submodule", "update", "--init", "--depth", "1", ...MODULES.map((name) => `vendor/${name}`)]);
   await $`bun install`.cwd(path("js"));
-  ensureDir(BIN);
+  stageDlls();
   await build(["js", "three"]);
 }
 
@@ -170,6 +179,11 @@ async function buildOnActions(name: string) {
   const runId = (await capture(["gh", "run", "list", "--repo", "aphrody-labs/gpu-bench", "--workflow", "build.yml", "--limit", "1", "--json", "databaseId,headSha", "--jq", ".[0].databaseId"])).trim();
   log(`actions run ${runId} for ${head}`);
   await capture(["gh", "run", "watch", runId, "--repo", "aphrody-labs/gpu-bench", "--exit-status"], { timeoutMs: 7_200_000 });
+  await downloadArtifact(runId, name);
+}
+
+/** Downloads artifact `name` of an Actions run into .bin (bevy-web into .bin/bevy-web), flattening directories. */
+async function downloadArtifact(runId: string, name: string) {
   const target = name === "bevy-web" ? path(".bin", "bevy-web") : BIN;
   const staging = path(".bin", "_artifact", name);
   rmSync(staging, { recursive: true, force: true });
@@ -276,6 +290,9 @@ switch (command) {
     break;
   case "bench":
     await bench(targets);
+    break;
+  case "fetch":
+    await downloadArtifact(targets[1]!, targets[0]!);
     break;
   case "sizes":
     await sizes();
