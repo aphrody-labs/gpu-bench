@@ -84,7 +84,7 @@ export async function pins(): Promise<Record<string, string>> {
   const status = await capture(["git", "submodule", "status"]);
   for (const line of status.trim().split("\n")) {
     const [sha, name] = line.trim().replace(/^[-+U]/, "").split(/\s+/);
-    if (sha && name) out[name.replace("vendor/", "")] = sha;
+    if (sha && name && ["dawn", "wgpu", "three.js", "bevy"].includes(name.replace("vendor/", ""))) out[name.replace("vendor/", "")] = sha;
   }
   return out;
 }

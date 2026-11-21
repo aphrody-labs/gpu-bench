@@ -23,6 +23,7 @@ const [command = "help", ...targets] = positional;
 const RUNS = flag("runs", 10);
 const GPU_RUNS = flag("gpu-runs", 3);
 
+const MODULES = ["dawn", "wgpu", "three.js", "bevy"];
 const exe = (name: string) => path(".bin", name);
 const brotli = (bytes: Uint8Array) => brotliCompressSync(bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 11, [constants.BROTLI_PARAM_LGWIN]: 24 } }).length;
 
@@ -90,7 +91,7 @@ const B_CONFIGS: SuiteB[] = SIZES.flatMap((n) => [
 // ---- commands -----------------------------------------------------------------------------------------------------
 
 async function setup() {
-  await capture(["git", "submodule", "update", "--init", "--depth", "1"]);
+  await capture(["git", "submodule", "update", "--init", "--depth", "1", ...MODULES.map((name) => `vendor/${name}`)]);
   await $`bun install`.cwd(path("js"));
   ensureDir(BIN);
   await build(["js", "three"]);
@@ -98,7 +99,7 @@ async function setup() {
 
 async function syncFr1(submodules: string[]) {
   const head = (await capture(["git", "rev-parse", "HEAD"])).trim();
-  const dirty = (await capture(["git", "status", "--porcelain", "--", ".", ":!.tools", ":!.bin", ":!.tmp"])).trim();
+  const dirty = (await capture(["git", "status", "--porcelain", "--", "bench", "scenes", "js", "wgsl", "scripts", ".github", "vendor/dawn", "vendor/wgpu", "vendor/bevy", "vendor/three.js"])).trim();
   if (dirty) throw new Error(`commit and push first, fr1 builds the pushed commit:\n${dirty}`);
   await capture(["git", "fetch", "-q", "origin", "main"]);
   const remote = (await capture(["git", "rev-parse", "origin/main"])).trim();
