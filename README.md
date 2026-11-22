@@ -1,3 +1,5 @@
+> **Moved.** This repository has been consolidated into [aphrody-labs/fw](https://github.com/aphrody-labs/fw/tree/main/gpu-bench) (\$(System.Collections.Hashtable.sub)\ — WebGPU (Dawn vs wgpu) and 3D (three.js vs Bevy) benchmarks (skill in plugins/aphrody/skills/gpu-bench)) and archived. All active development continues in \phrody-labs/fw\.
+
 # gpu-bench
 
 Reproducible WebGPU benchmarks on one machine, with the engines as pinned submodules:
